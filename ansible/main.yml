@@ -18,14 +18,34 @@
         force_apt_get=yes
       tags: update
 
+    - name: Install utils
+      apt:
+        name: 
+          - apt-transport-https 
+          - ca-certificates 
+          - curl
+          - gnupg
+        state: latest
+        update_cache: true
+
     - name: Add Docker GPG apt Key
       apt_key:
-        url: https://download.docker.com/linux/ubuntu/gpg
+        url: https://download.docker.com/linux/debian/gpg
         state: present
 
     - name: Add Docker Repository
       apt_repository:
-        repo: deb https://download.docker.com/linux/ubuntu focal stable
+        repo: deb https://download.docker.com/linux/debian bullseye stable
+        state: present
+
+    - name: Agregar clave GPG del repositorio de Google
+      apt_key:
+        url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+        state: present
+
+    - name: Agregar repositorio de Google para Kubernetes
+      apt_repository:
+        repo: deb http://apt.kubernetes.io/ kubernetes-xenial main
         state: present
 
     - name: Update apt repository
@@ -37,7 +57,13 @@
 
     - name: Install containerd.io
       apt:
-        name: containerd.io
+        name:
+          - nftables
+          - netbase
+          - containerd.io
+          - kubelet
+          - kubeadm  
+          - kubectl
         state: latest
         update_cache: true
     
@@ -57,5 +83,45 @@
         path: /etc/containerd/config.toml
         regexp: 'SystemdCgroup = false'
         replace: 'SystemdCgroup = true'
+      
+    - name: Add modules
+      ansible.builtin.copy:
+        content: |
+          overlay
+          br_netfilter
+        dest: /etc/modules-load.d/containerd.conf
 
+    - name: Read containerd modules
+      ansible.builtin.shell:
+        cmd: cat /etc/modules-load.d/containerd.conf
+      register: modules
+
+    - name: Load containerd modules
+      ansible.builtin.command:
+        cmd: "modprobe {{ item }}"
+      with_items: "{{ modules.stdout_lines }}"
+
+    - name: Add network rules
+      ansible.builtin.copy:
+        content: |
+          net.bridge.bridge-nf-call-ip6tables = 1
+          net.bridge.bridge-nf-call-iptables = 1
+          net.ipv4.ip_forward = 1
+        dest: /etc/sysctl.d/kubernetes.conf
+
+    - name: Read network rules
+      ansible.builtin.shell:
+        cmd: cat /etc/sysctl.d/kubernetes.conf
+      register: rules
+
+    - name: Load network rules
+      command: sudo sysctl --system
+    
+    - name: Restart containerd
+      ansible.builtin.systemd_service:
+        name: containerd.service
+        state: restarted
+
+    - name: Init cluster
+      command: sudo kubeadm init --pod-network-cidr=10.244.0.0/16
 
