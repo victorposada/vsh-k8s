@@ -1,0 +1,39 @@
+import influxdb_client, os, time, subprocess
+from influxdb_client import InfluxDBClient, Point, WritePrecision
+from influxdb_client.client.write_api import SYNCHRONOUS
+
+token = os.environ.get("INFLUXDB_TOKEN")
+org = "{{ influx_organization }}"
+url = "http://192.168.1.121:8086"
+bucket="{{ influx_bucket }}"
+
+client = influxdb_client.InfluxDBClient(url=url, token=token, org=org)
+
+def get_raspberry_pi_temperature():
+    try:
+        # Run vcgencmd command to get temperature
+        result = subprocess.check_output(['vcgencmd', 'measure_temp'])
+
+        # Extract temperature value from the result
+        temperature_str = result.decode('utf-8').strip().split('=')[1].split("'")[0]
+
+        # Convert the temperature to a float
+        temperature = float(temperature_str)
+
+        return temperature
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+
+if __name__ == "__main__":
+    try:
+        while True:
+            temperature = get_raspberry_pi_temperature()
+            write_api = client.write_api(write_options=SYNCHRONOUS)
+            p = influxdb_client.Point("term").tag("location", "Prague").field("temperature", temperature)            
+            write_api.write(bucket=bucket, org=org, record=p)
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+        # Handle keyboard interrupt (Ctrl+C) to exit the loop gracefully
+        print("\nMonitoring stopped.")

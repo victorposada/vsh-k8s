@@ -1,0 +1,6 @@
+---
+voice_port: 9987
+cli_port: 10011
+files_port: 30033
+ts_license: accept
+ts_db_name: teamspeak

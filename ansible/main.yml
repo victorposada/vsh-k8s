@@ -1,0 +1,61 @@
+---
+- hosts: all
+  become : yes
+  tasks: 
+    - name: Check connection
+      action: ping
+
+    - name: Update apt repository
+      apt: 
+        update_cache=yes 
+        force_apt_get=yes 
+        cache_valid_time=3600
+      tags: update
+
+    - name: Upgrade apt repository
+      apt: 
+        upgrade=dist 
+        force_apt_get=yes
+      tags: update
+
+    - name: Add Docker GPG apt Key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker Repository
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu focal stable
+        state: present
+
+    - name: Update apt repository
+      apt: 
+        update_cache=yes 
+        force_apt_get=yes 
+        cache_valid_time=3600
+      tags: update
+
+    - name: Install containerd.io
+      apt:
+        name: containerd.io
+        state: latest
+        update_cache: true
+    
+    - name: Disable swap
+      command: swapoff -a
+
+- hosts: master
+  become : yes
+  tasks: 
+    - name: Create containerd config
+      shell: containerd config default > /etc/containerd/config.toml
+      args:
+        creates: /etc/containerd/config.toml
+
+    - name: Set SystemdCgroup to true in containerd config
+      ansible.builtin.replace:
+        path: /etc/containerd/config.toml
+        regexp: 'SystemdCgroup = false'
+        replace: 'SystemdCgroup = true'
+
+

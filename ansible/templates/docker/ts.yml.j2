@@ -1,0 +1,27 @@
+---
+version: '3.1'
+services:
+  teamspeak:
+    image: ertagh/teamspeak3-server:latest
+    restart: always
+    container_name: ts
+    ports:
+      - {{ voice_port }}:{{ voice_port }}/udp
+      - {{ cli_port }}:{{ cli_port }}
+      - {{ files_port }}:{{ files_port }}
+    environment:
+      TS3SERVER_DB_PLUGIN: ts3db_mariadb
+      TS3SERVER_DB_SQLCREATEPATH: create_mariadb
+      TS3SERVER_DB_HOST: db
+      TS3SERVER_DB_USER: root
+      TS3SERVER_DB_PASSWORD: {{ ts_db_password }}
+      TS3SERVER_DB_NAME: {{ ts_db_name }}
+      TS3SERVER_DB_WAITUNTILREADY: 30
+      TS3SERVER_LICENSE: {{ ts_license }}
+  db:
+    image: mariadb
+    restart: always
+    container_name: ts_db
+    environment:
+      MYSQL_ROOT_PASSWORD: {{ ts_db_password }}
+      MYSQL_DATABASE: {{ ts_db_name }}
