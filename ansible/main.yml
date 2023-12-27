@@ -68,15 +68,13 @@
         update_cache: true
     
     - name: Disable swap
-      command: swapoff -a
+      shell: |
+          swapoff -a 
+          sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
 
-- hosts: master
-  become : yes
-  tasks: 
     - name: Create containerd config
       shell: containerd config default > /etc/containerd/config.toml
-      args:
-        creates: /etc/containerd/config.toml
+
 
     - name: Set SystemdCgroup to true in containerd config
       ansible.builtin.replace:
@@ -116,12 +114,37 @@
 
     - name: Load network rules
       command: sudo sysctl --system
-    
+
     - name: Restart containerd
       ansible.builtin.systemd_service:
         name: containerd.service
         state: restarted
 
+- hosts: master
+  become : yes
+  tasks: 
     - name: Init cluster
       command: sudo kubeadm init --pod-network-cidr=10.244.0.0/16
 
+    - name: Get the token for joining the worker nodes
+      become: yes
+      shell: kubeadm token create  --print-join-command
+      register: kubernetes_join_command
+
+    - name: Copy join command to local file.
+      become: no
+      local_action: copy content="{{ kubernetes_join_command.stdout_lines[0] }}" dest="/tmp/kube_join"
+
+- hosts: worker
+  become: yes
+  tasks: 
+    - name: Copy join command
+      become: yes
+      copy:
+        src: /tmp/kube_join
+        dest: /tmp/kube_join
+        mode: 0777
+
+    - name: Join the Worker nodes to the cluster.
+      become: yes
+      command: sh /tmp/kube_join
